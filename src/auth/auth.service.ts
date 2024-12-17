@@ -29,14 +29,14 @@ export class AuthService {
       return error;
     }
   }
-  async newOtpVerification(email: string) {
+  async newOtpVerification(id: string, email: string) {
     try {
-      return this.userRepository.generateOtpVerification(email);
+      return this.userRepository.generateOtpVerification(id, email);
     } catch (error) {
       return error;
     }
   }
-  async forgetUserPass(forgetAuthDto: UpdatePasswordDto) {
+  async forgetUserPass(forgetAuthDto: ForgetPasswordDto) {
     try {
       return this.userRepository.forgetPass(forgetAuthDto);
     } catch (error) {
@@ -44,9 +44,16 @@ export class AuthService {
     }
   }
 
-  async resetPass(updatePassword: ForgetPasswordDto) {
+  async resetPass(updatePassword: UpdatePasswordDto) {
     try {
       return this.userRepository.rePassword(updatePassword);
+    } catch (error) {
+      return error;
+    }
+  }
+  async tokenRefresh(refreshToken: string) {
+    try {
+      return this.userRepository.refreshAccessToken(refreshToken);
     } catch (error) {
       return error;
     }

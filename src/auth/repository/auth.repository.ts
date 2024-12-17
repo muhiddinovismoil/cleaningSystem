@@ -3,6 +3,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from '../entities/auth.entity';
@@ -138,21 +139,30 @@ export class AuthRepository {
       if (!checkOtp) {
         throw new BadRequestException('OTP not found');
       }
-      if (checkOtp.otp_code == forgetAuthDto.otp_code) {
-        await this.otpModel.findOneAndDelete({ user_id: checkOtp._id });
+      if (checkOtp.otp_code === forgetAuthDto.otp_code) {
+        await this.otpModel.findOneAndDelete({ user_id: checkOtp.user_id });
+      } else {
+        throw new BadRequestException('Invalid OTP');
       }
-      if (forgetAuthDto.newPassword == forgetAuthDto.confirmPassword) {
-        await this.userModel.findOneAndUpdate({
-          email: forgetAuthDto.email,
-          password: generateHash(forgetAuthDto.newPassword),
-        });
+      if (forgetAuthDto.newPassword === forgetAuthDto.confirmPassword) {
+        const hashedPassword = await generateHash(forgetAuthDto.newPassword);
+        await this.userModel.findOneAndUpdate(
+          { email: forgetAuthDto.email },
+          { password: hashedPassword },
+          { new: true },
+        );
+
+        return { msg: 'Your password has been updated successfully' };
+      } else {
+        throw new BadRequestException('Passwords do not match');
       }
-      throw new BadRequestException('Your password not updated ');
     } catch (error) {
-      return error;
+      console.error('Error updating password:', error);
+      throw error;
     }
   }
-  async generateOtpVerification(email: string) {
+
+  async generateOtpVerification(id: string, email: string) {
     try {
       const otp = await generateOtp();
       await sendEmail(
@@ -162,8 +172,11 @@ export class AuthRepository {
         'Thank you for registering!',
         `<h1>Welcome!</h1><p>We are glad to have you on board.<br>Here is your otp code and don't give it to others please: ${otp}</p>`,
       );
-      const newOtp = new this.otpModel({ otp_code: otp });
+      const newOtp = new this.otpModel({ user_id: id, otp_code: otp });
       await newOtp.save();
+      return {
+        msg: 'Your otp sended to your email',
+      };
     } catch (error) {
       return error;
     }
@@ -176,15 +189,42 @@ export class AuthRepository {
       if (!userPassUpdate) {
         throw new NotFoundException('User not found');
       }
-      if (userPassUpdate.password != updateUserDto.oldPassword) {
-        throw new BadRequestException('User password or email is not suit');
+      const bool = await comparePass(
+        userPassUpdate.password,
+        updateUserDto.oldPassword,
+      );
+      if (bool) {
+        await this.userModel.findOneAndUpdate({
+          email: updateUserDto.email,
+          password: await generateHash(updateUserDto.password),
+        });
+        return {
+          msg: 'Your password reseted successfully',
+        };
       }
-      await this.userModel.findOneAndUpdate({
-        email: updateUserDto.email,
-        password: generateHash(updateUserDto.password),
-      });
+      throw new BadRequestException('Your old password is not suit');
     } catch (error) {
       return error;
+    }
+  }
+  async refreshAccessToken(refreshToken: string) {
+    try {
+      const decoded = this.jwtService.verify(refreshToken, {
+        secret: jwtConstants.refresh.secret,
+      });
+      const { id, email } = decoded;
+      const newAccessToken = this.jwtService.sign(
+        { id, email },
+        {
+          secret: jwtConstants.access.secret,
+          expiresIn: jwtConstants.access.expiresTime,
+        },
+      );
+      return { accessToken: newAccessToken };
+    } catch (error) {
+      throw new UnauthorizedException(
+        `Invalid or expired refresh token ${error}`,
+      );
     }
   }
 }

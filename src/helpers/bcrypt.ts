@@ -4,5 +4,5 @@ export async function generateHash(password: string) {
   return await bcrypt.hash(password, salt);
 }
 export async function comparePass(oldPassword: string, password: string) {
-  return await bcrypt.compare(oldPassword, password);
+  return await bcrypt.compare(password, oldPassword);
 }

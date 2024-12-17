@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthSchema, CreateAuthDto } from './dto/register.dto';
 import { AuthSchema2, LoginAuthDto } from './dto/login.dto';
@@ -31,21 +31,25 @@ export class AuthController {
 
   @Post('forget-password')
   forgetPassword(
-    @Body(new ZodValidationPipe(updatePassSchema))
-    forgetAuthDto: UpdatePasswordDto,
+    @Body(new ZodValidationPipe(forgetPassSchem))
+    forgetAuthDto: ForgetPasswordDto,
   ) {
     return this.authService.forgetUserPass(forgetAuthDto);
   }
-  @Post('otp-forget-password')
-  otpForgetPassword(@Body() email: string) {
-    return this.authService.newOtpVerification(email);
+  @Post('otp-forget-password/:id')
+  otpForgetPassword(@Param('id') id: string, @Body('email') email: string) {
+    return this.authService.newOtpVerification(id, email);
   }
 
   @Post('reset-password')
   resetPassword(
-    @Body(new ZodValidationPipe(forgetPassSchem))
-    updatePassword: ForgetPasswordDto,
+    @Body(new ZodValidationPipe(updatePassSchema))
+    updatePassword: UpdatePasswordDto,
   ) {
     return this.authService.resetPass(updatePassword);
+  }
+  @Get('refreshToken')
+  refreshAccessToken(@Body('refreshToken') refreshToken: string) {
+    return this.authService.tokenRefresh(refreshToken);
   }
 }
