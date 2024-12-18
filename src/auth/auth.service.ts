@@ -29,7 +29,7 @@ export class AuthService {
       return error;
     }
   }
-  async newOtpVerification(id: string, email: string) {
+  async newOtpVerification(id: number, email: string) {
     try {
       return this.userRepository.generateOtpVerification(id, email);
     } catch (error) {

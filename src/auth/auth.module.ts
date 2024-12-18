@@ -1,19 +1,18 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { MongooseModule } from '@nestjs/mongoose';
-import { UserSchema } from './entities/auth.entity';
+import { User } from './entities/auth.entity';
 import { AuthRepository } from './repository/auth.repository';
-import { OtpSchema } from './entities/otp.entity';
+import { OTP } from './entities/otp.entity';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { JwtModule } from '@nestjs/jwt';
 import { jwtConstants } from 'src/constants/jwt.constant';
 import * as dotenv from 'dotenv';
+import { SequelizeModule } from '@nestjs/sequelize';
 dotenv.config();
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: 'users', schema: UserSchema }]),
-    MongooseModule.forFeature([{ name: 'otp', schema: OtpSchema }]),
+    SequelizeModule.forFeature([User, OTP]),
     JwtModule.register({
       global: true,
       secret: jwtConstants.access.secret,

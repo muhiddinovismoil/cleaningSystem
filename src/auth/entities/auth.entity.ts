@@ -1,20 +1,46 @@
-import { Schema, Prop, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  CreatedAt,
+  UpdatedAt,
+  Default,
+} from 'sequelize-typescript';
 import { Role } from 'src/enums/role.enums';
-export type UserDocument = HydratedDocument<User>;
-@Schema()
-export class User {
-  @Prop()
+
+@Table({ tableName: 'users' })
+export class User extends Model<User> {
+  @Column({
+    type: DataType.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  })
+  id: number;
+
+  @Column({ type: DataType.STRING, allowNull: false })
   name: string;
-  @Prop({ required: true, unique: true })
+
+  @Column({ type: DataType.STRING, unique: true, allowNull: false })
   email: string;
-  @Prop({ required: true })
+
+  @Column({ type: DataType.STRING, allowNull: false })
   password: string;
-  @Prop()
+
+  @Column({ type: DataType.STRING, allowNull: true })
   profile_logo: string;
-  @Prop({ enum: [Role.User, Role.Admin, Role.SuperAdmin], default: Role.User })
+
+  @Default(Role.User)
+  @Column({
+    type: DataType.ENUM(Role.User, Role.Admin, Role.SuperAdmin),
+  })
   role: Role;
-  @Prop({ type: Boolean, default: false })
+  @Column({ type: DataType.BOOLEAN, defaultValue: false })
   isActive: boolean;
+
+  @CreatedAt
+  createdAt: Date;
+
+  @UpdatedAt
+  updatedAt: Date;
 }
-export const UserSchema = SchemaFactory.createForClass(User);

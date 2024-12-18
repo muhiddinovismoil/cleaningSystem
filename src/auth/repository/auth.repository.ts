@@ -5,9 +5,8 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
+import { InjectModel } from '@nestjs/sequelize';
 import { User } from '../entities/auth.entity';
-import { Model } from 'mongoose';
 import { comparePass, generateHash } from 'src/helpers/bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { jwtConstants } from 'src/constants/jwt.constant';
@@ -24,15 +23,15 @@ import { generateOtp } from 'src/helpers/otp-generator';
 @Injectable()
 export class AuthRepository {
   constructor(
-    @InjectModel('users') private readonly userModel: Model<User>,
-    @InjectModel('otp') private readonly otpModel: Model<OTP>,
+    @InjectModel(User) private readonly userModel: typeof User,
+    @InjectModel(OTP) private readonly otpModel: typeof OTP,
     private readonly jwtService: JwtService,
     private readonly mailerHelper: MailerService,
   ) {}
   async register(createUserDto: CreateAuthDto) {
     try {
       const isUserExists = await this.userModel.findOne({
-        email: createUserDto.email,
+        where: { email: createUserDto.email },
       });
       const hashPass = await generateHash(createUserDto.password);
       if (!isUserExists) {
@@ -51,12 +50,12 @@ export class AuthRepository {
         );
         const newOtp = new this.otpModel({
           otp_code: otp,
-          user_id: newUser._id,
+          user_id: newUser.id,
         });
         await newOtp.save();
         return {
           msg: 'You are registered successfully',
-          userId: newUser._id,
+          userId: newUser.id,
         };
       }
       throw new BadRequestException('User already exists');
@@ -68,7 +67,7 @@ export class AuthRepository {
   async login(data: LoginAuthDto) {
     try {
       const getUser = await this.userModel.findOne({
-        email: data.email,
+        where: { email: data.email },
       });
       if (!getUser) {
         throw new NotFoundException('User not found');
@@ -81,7 +80,7 @@ export class AuthRepository {
         throw new BadRequestException('Your email or password does not match');
       }
       const payload = {
-        sub: getUser._id,
+        sub: getUser.id,
         name: getUser.name,
         email: getUser.email,
         role: getUser.role,
@@ -105,17 +104,13 @@ export class AuthRepository {
   }
   async verifyOTP(id: string, otp: string) {
     try {
-      const getUser = await this.otpModel.findOne({ user_id: id });
+      const getUser = await this.otpModel.findOne({ where: { user_id: id } });
       if (!getUser) {
         throw new NotFoundException('Your OTP not found');
       }
       if (getUser.otp_code == otp) {
-        await this.otpModel.findOneAndDelete({ user_id: id });
-        await this.userModel.findOneAndUpdate(
-          { _id: id },
-          { $set: { isActive: true } },
-          { new: true },
-        );
+        await this.otpModel.destroy({ where: { user_id: id } });
+        await this.userModel.update({ isActive: true }, { where: { id: id } });
         return {
           msg: 'Your account is now activated',
         };
@@ -130,39 +125,41 @@ export class AuthRepository {
   async forgetPass(forgetAuthDto: ForgetPasswordDto) {
     try {
       const findUser = await this.userModel.findOne({
-        email: forgetAuthDto.email,
+        where: { email: forgetAuthDto.email },
       });
       if (!findUser) {
         throw new NotFoundException('User not found with this email');
       }
-      const checkOtp = await this.otpModel.findOne({ user_id: findUser._id });
+      const checkOtp = await this.otpModel.findOne({
+        where: { user_id: findUser.id },
+      });
       if (!checkOtp) {
         throw new BadRequestException('OTP not found');
       }
-      if (checkOtp.otp_code === forgetAuthDto.otp_code) {
-        await this.otpModel.findOneAndDelete({ user_id: checkOtp.user_id });
-      } else {
+      if (checkOtp.otp_code !== forgetAuthDto.otp_code) {
         throw new BadRequestException('Invalid OTP');
       }
-      if (forgetAuthDto.newPassword === forgetAuthDto.confirmPassword) {
-        const hashedPassword = await generateHash(forgetAuthDto.newPassword);
-        await this.userModel.findOneAndUpdate(
-          { email: forgetAuthDto.email },
-          { password: hashedPassword },
-          { new: true },
-        );
-
-        return { msg: 'Your password has been updated successfully' };
-      } else {
+      await this.otpModel.destroy({
+        where: { user_id: findUser.id },
+      });
+      if (forgetAuthDto.newPassword !== forgetAuthDto.confirmPassword) {
         throw new BadRequestException('Passwords do not match');
       }
+      const hashedPassword = await generateHash(forgetAuthDto.newPassword);
+      await this.userModel.update(
+        { password: hashedPassword },
+        { where: { email: forgetAuthDto.email } },
+      );
+      return { msg: 'Your password has been updated successfully' };
     } catch (error) {
       console.error('Error updating password:', error);
-      throw error;
+      throw new InternalServerErrorException(
+        'An error occurred while updating password',
+      );
     }
   }
 
-  async generateOtpVerification(id: string, email: string) {
+  async generateOtpVerification(id: number, email: string) {
     try {
       const otp = await generateOtp();
       await sendEmail(
@@ -172,7 +169,10 @@ export class AuthRepository {
         'Thank you for registering!',
         `<h1>Welcome!</h1><p>We are glad to have you on board.<br>Here is your otp code and don't give it to others please: ${otp}</p>`,
       );
-      const newOtp = new this.otpModel({ user_id: id, otp_code: otp });
+      const newOtp = new this.otpModel({
+        user_id: id,
+        otp_code: otp,
+      });
       await newOtp.save();
       return {
         msg: 'Your otp sended to your email',
@@ -184,29 +184,31 @@ export class AuthRepository {
   async rePassword(updateUserDto: UpdatePasswordDto) {
     try {
       const userPassUpdate = await this.userModel.findOne({
-        email: updateUserDto.email,
+        where: { email: updateUserDto.email },
       });
       if (!userPassUpdate) {
         throw new NotFoundException('User not found');
       }
-      const bool = await comparePass(
+      const isMatch = await comparePass(
         userPassUpdate.password,
         updateUserDto.oldPassword,
       );
-      if (bool) {
-        await this.userModel.findOneAndUpdate({
-          email: updateUserDto.email,
-          password: await generateHash(updateUserDto.password),
-        });
-        return {
-          msg: 'Your password reseted successfully',
-        };
+      if (!isMatch) {
+        throw new BadRequestException('Your old password is incorrect');
       }
-      throw new BadRequestException('Your old password is not suit');
+      const hashedPassword = await generateHash(updateUserDto.password);
+      await this.userModel.update(
+        { password: hashedPassword },
+        { where: { email: updateUserDto.email } },
+      );
+      return {
+        msg: 'Your password has been reset successfully',
+      };
     } catch (error) {
       return error;
     }
   }
+
   async refreshAccessToken(refreshToken: string) {
     try {
       const decoded = this.jwtService.verify(refreshToken, {

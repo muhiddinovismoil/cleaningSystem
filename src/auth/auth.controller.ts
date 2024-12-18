@@ -38,7 +38,7 @@ export class AuthController {
   }
   @Post('otp-forget-password/:id')
   otpForgetPassword(@Param('id') id: string, @Body('email') email: string) {
-    return this.authService.newOtpVerification(id, email);
+    return this.authService.newOtpVerification(+id, email);
   }
 
   @Post('reset-password')
