@@ -89,10 +89,7 @@ export class UsersRepository {
       if (!getAvatar) {
         throw new NotFoundException('User not found');
       }
-      return {
-        msg: 'Here is your avatar',
-        profile_avatar: getAvatar.profile_logo,
-      };
+      return getAvatar.profile_logo;
     } catch (error) {
       return error;
     }
