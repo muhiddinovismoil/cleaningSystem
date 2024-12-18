@@ -38,7 +38,7 @@ export class UsersController {
     }
   }
 
-  @Post(':id')
+  @Post('/:id/avatar')
   setAvatar(
     @Param('id') id: string,
     @Body('profile_logo') profile_logo: string,
@@ -49,7 +49,7 @@ export class UsersController {
       return error;
     }
   }
-  @Put(':id')
+  @Put('/:id/avatar')
   getAvatarById(@Param('id') id: string) {
     try {
       return this.usersService.getAvatar(+id);
