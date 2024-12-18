@@ -6,14 +6,20 @@ import {
   Param,
   Delete,
   Put,
+  UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { Role } from '../enums/role.enums';
+import { AuthGuard } from 'src/guard/auth.guard';
+import { RoleGuard } from 'src/guard/role.guard';
+import { Roles } from 'src/decorator/role.decorators';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(Role.Admin, Role.SuperAdmin)
   @Get()
   findAll() {
     try {
@@ -43,7 +49,6 @@ export class UsersController {
       return error;
     }
   }
-
   @Put(':id')
   getAvatarById(@Param('id') id: string) {
     try {
@@ -52,7 +57,8 @@ export class UsersController {
       return error;
     }
   }
-
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(Role.Admin, Role.SuperAdmin)
   @Delete(':id')
   updateUser(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     try {
@@ -61,6 +67,8 @@ export class UsersController {
       return error;
     }
   }
+  @UseGuards(AuthGuard, RoleGuard)
+  @Roles(Role.Admin, Role.SuperAdmin)
   @Delete(':id')
   removeUser(@Param('id') id: string) {
     try {

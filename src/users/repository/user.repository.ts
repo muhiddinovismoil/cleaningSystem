@@ -8,7 +8,9 @@ export class UsersRepository {
   constructor(@InjectModel(User) private readonly userModel: typeof User) {}
   async getAllUsers() {
     try {
-      const getdata = await this.userModel.findAll();
+      const getdata = await this.userModel.findAll({
+        attributes: { exclude: ['password'] },
+      });
       if (getdata.length == 0) {
         throw new NotFoundException('Users not found');
       }
@@ -21,6 +23,7 @@ export class UsersRepository {
     try {
       const data = await this.userModel.findOne({
         where: { id: id },
+        attributes: { exclude: ['password'] },
       });
       if (!data) {
         throw new NotFoundException('User not found');
